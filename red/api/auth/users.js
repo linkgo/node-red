@@ -14,6 +14,7 @@
 * limitations under the License.
 **/
 
+var logger = require('tracer').colorConsole();
 var when = require("when");
 var util = require("util");
 var bcrypt;
@@ -22,6 +23,7 @@ catch(e) { bcrypt = require('bcryptjs'); }
 var users = {};
 var passwords = {};
 var defaultUser = null;
+var request = require('request');
 
 function authenticate(username,password) {
     var user = users[username];
@@ -30,6 +32,41 @@ function authenticate(username,password) {
             bcrypt.compare(password, passwords[username], function(err, res) {
                 resolve(res?user:null);
             });
+        });
+    } else {
+        return when.promise(function(resolve, reject) {
+            request.post(
+                {
+                    url: "http://localhost:4000/login",
+                    form: {
+                        username: username,
+                        password: password
+                    }
+                },
+                function(error, response, body) {
+                    if (!error && response.statusCode == 200) {
+                        //logger.debug(body);
+                        var res = JSON.parse(body);
+                        if(res.success == true) {
+                            // user = {
+                            //     "username": username,
+                            //     "permissions": "*"
+                            // };
+                            users[username] = {
+                                "username":username,
+                                "permissions": "*"
+                            };
+                            logger.debug(users[username]);
+                            resolve(users[username]);
+                        } else {
+                            resolve(null);
+                        }
+                    } else {
+                        logger.error(error);
+                        resolve(null);
+                    }
+                }
+            );
         });
     }
     return when.resolve(null);
